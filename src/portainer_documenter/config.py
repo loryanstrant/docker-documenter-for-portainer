@@ -7,7 +7,7 @@ import json
 import yaml
 import logging
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 
 
 class Config:
@@ -16,13 +16,21 @@ class Config:
     def __init__(self, config_file: Optional[str] = None):
         self.logger = logging.getLogger(__name__)
         
-        # Default configuration
+        # Default configuration for service mode
+        self.portainer_hosts = []  # List of host configurations
+        self.portainer_timezone = 'UTC'
+        self.portainer_schedule_time = '02:00'
+        self.portainer_output_dir = '/output'
+        
+        # Legacy single-host support (for backward compatibility)
         self.portainer_url = None
         self.username = None
         self.password = None
         self.token = None
         self.output_file = 'portainer-docs.md'
         self.output_format = 'markdown'
+        
+        # Feature flags
         self.include_compose_files = True
         self.include_templates = True
         self.include_registries = True
@@ -60,6 +68,26 @@ class Config:
     
     def _load_from_env(self) -> None:
         """Load configuration from environment variables"""
+        # Service-specific environment variables
+        portainer_hosts_json = os.getenv('PORTAINER_HOSTS')
+        if portainer_hosts_json:
+            try:
+                self.portainer_hosts = json.loads(portainer_hosts_json)
+            except json.JSONDecodeError as e:
+                self.logger.error(f"Error parsing PORTAINER_HOSTS JSON: {e}")
+                self.portainer_hosts = []
+        
+        # Service configuration
+        if os.getenv('PORTAINER_TIMEZONE'):
+            self.portainer_timezone = os.getenv('PORTAINER_TIMEZONE')
+        
+        if os.getenv('PORTAINER_SCHEDULE_TIME'):
+            self.portainer_schedule_time = os.getenv('PORTAINER_SCHEDULE_TIME')
+        
+        if os.getenv('PORTAINER_OUTPUT_DIR'):
+            self.portainer_output_dir = os.getenv('PORTAINER_OUTPUT_DIR')
+        
+        # Legacy environment variables (for backward compatibility)
         env_mappings = {
             'PORTAINER_URL': 'portainer_url',
             'PORTAINER_USERNAME': 'username',
@@ -88,6 +116,51 @@ class Config:
             value = os.getenv(env_var)
             if value is not None:
                 setattr(self, attr_name, value.lower() in ['true', '1', 'yes', 'on'])
+        
+        # Convert legacy single-host config to multi-host format if needed
+        self._convert_legacy_config()
+    
+    def _convert_legacy_config(self) -> None:
+        """Convert legacy single-host configuration to multi-host format"""
+        if not self.portainer_hosts and self.portainer_url:
+            host_config = {
+                'name': 'default',
+                'url': self.portainer_url,
+            }
+            
+            if self.username:
+                host_config['username'] = self.username
+            if self.password:
+                host_config['password'] = self.password
+            if self.token:
+                host_config['token'] = self.token
+            
+            self.portainer_hosts = [host_config]
+            self.logger.info("Converted legacy single-host config to multi-host format")
+    
+    def get_hosts(self) -> List[Dict[str, Any]]:
+        """Get list of configured Portainer hosts"""
+        return self.portainer_hosts
+    
+    def has_multiple_hosts(self) -> bool:
+        """Check if multiple hosts are configured"""
+        return len(self.portainer_hosts) > 1
+    
+    def validate_host_config(self, host_config: Dict[str, Any]) -> bool:
+        """Validate a single host configuration"""
+        if not host_config.get('url'):
+            self.logger.error(f"Host configuration missing 'url': {host_config}")
+            return False
+        
+        if not host_config.get('token') and not (host_config.get('username') and host_config.get('password')):
+            self.logger.error(f"Host configuration missing authentication: {host_config}")
+            return False
+        
+        return True
+        """Update configuration from dictionary"""
+        for key, value in data.items():
+            if hasattr(self, key):
+                setattr(self, key, value)
     
     def _update_from_dict(self, data: Dict[str, Any]) -> None:
         """Update configuration from dictionary"""
@@ -98,6 +171,10 @@ class Config:
     def to_dict(self) -> Dict[str, Any]:
         """Convert configuration to dictionary"""
         return {
+            'portainer_hosts': self.portainer_hosts,
+            'portainer_timezone': self.portainer_timezone,
+            'portainer_schedule_time': self.portainer_schedule_time,
+            'portainer_output_dir': self.portainer_output_dir,
             'portainer_url': self.portainer_url,
             'output_file': self.output_file,
             'output_format': self.output_format,
@@ -128,16 +205,27 @@ class Config:
     
     def validate(self) -> bool:
         """Validate configuration"""
-        if not self.portainer_url:
-            self.logger.error("Portainer URL is required")
+        # Check if we have any hosts configured
+        if not self.portainer_hosts:
+            self.logger.error("No Portainer hosts configured")
             return False
         
-        if not self.token and not (self.username and self.password):
-            self.logger.error("Either API token or username/password is required")
-            return False
+        # Validate each host configuration
+        for i, host_config in enumerate(self.portainer_hosts):
+            if not self.validate_host_config(host_config):
+                self.logger.error(f"Invalid configuration for host {i}")
+                return False
         
         if self.output_format not in ['markdown', 'json']:
             self.logger.error("Output format must be 'markdown' or 'json'")
+            return False
+        
+        # Validate schedule time format
+        try:
+            from datetime import datetime
+            datetime.strptime(self.portainer_schedule_time, '%H:%M')
+        except ValueError:
+            self.logger.error(f"Invalid schedule time format: {self.portainer_schedule_time}. Use HH:MM format.")
             return False
         
         return True

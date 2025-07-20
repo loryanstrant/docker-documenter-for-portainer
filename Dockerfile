@@ -3,9 +3,10 @@ FROM python:3.11-slim
 # Set working directory
 WORKDIR /app
 
-# Install system dependencies
+# Install system dependencies including timezone data
 RUN apt-get update && apt-get install -y \
     curl \
+    tzdata \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements first for better caching
@@ -31,12 +32,15 @@ USER app
 ENV PYTHONPATH=/app/src
 ENV PYTHONUNBUFFERED=1
 
-# Default output directory
-ENV PORTAINER_OUTPUT_FILE=/output/portainer-docs.md
+# Service-specific environment variables with defaults
+ENV PORTAINER_OUTPUT_DIR=/output
+ENV PORTAINER_TIMEZONE=UTC
+ENV PORTAINER_SCHEDULE_TIME=02:00
+ENV PORTAINER_OUTPUT_FORMAT=markdown
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+# Health check - check if the service is responsive
+HEALTHCHECK --interval=60s --timeout=10s --start-period=30s --retries=3 \
     CMD python -c "import sys; sys.path.insert(0, '/app/src'); from portainer_documenter import __version__; print(__version__)" || exit 1
 
-# Default command
+# Default command - start the service
 ENTRYPOINT ["python", "main.py"]
