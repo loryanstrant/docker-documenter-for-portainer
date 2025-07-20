@@ -157,10 +157,6 @@ class Config:
             return False
         
         return True
-        """Update configuration from dictionary"""
-        for key, value in data.items():
-            if hasattr(self, key):
-                setattr(self, key, value)
     
     def _update_from_dict(self, data: Dict[str, Any]) -> None:
         """Update configuration from dictionary"""
