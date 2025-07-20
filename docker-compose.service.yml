@@ -1,0 +1,61 @@
+version: '3.8'
+
+services:
+  portainer-documenter:
+    image: portainer-documenter:latest
+    container_name: portainer-documenter
+    restart: unless-stopped
+    
+    environment:
+      # Service Configuration
+      PORTAINER_TIMEZONE: "America/New_York"
+      PORTAINER_SCHEDULE_TIME: "02:00"
+      PORTAINER_OUTPUT_FORMAT: "markdown"
+      PORTAINER_VERBOSE: "false"
+      
+      # Multiple Portainer Hosts Configuration
+      PORTAINER_HOSTS: |
+        [
+          {
+            "name": "production",
+            "url": "https://portainer-prod.example.com",
+            "token": "ptr_your-production-api-token-here"
+          },
+          {
+            "name": "staging",
+            "url": "https://portainer-staging.example.com",
+            "username": "admin",
+            "password": "your-staging-password"
+          },
+          {
+            "name": "development", 
+            "url": "https://portainer-dev.example.com",
+            "token": "ptr_your-development-api-token-here"
+          }
+        ]
+      
+      # Feature Flags
+      PORTAINER_INCLUDE_COMPOSE_FILES: "true"
+      PORTAINER_INCLUDE_TEMPLATES: "true"
+      PORTAINER_INCLUDE_REGISTRIES: "true"
+      PORTAINER_INCLUDE_AUTH_SETTINGS: "true"
+      PORTAINER_INCLUDE_LICENSE_INFO: "true"
+      PORTAINER_INCLUDE_USERS_TEAMS: "true"
+    
+    volumes:
+      # Mount directory for documentation output
+      - ./documentation:/output
+      
+    # Health check to ensure service is running
+    healthcheck:
+      test: ["CMD", "python", "-c", "import sys; sys.path.insert(0, '/app/src'); from portainer_documenter import __version__; print(__version__)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+# Optional: Use external network if you need to connect to other services
+# networks:
+#   default:
+#     external:
+#       name: your-network-name
