@@ -42,6 +42,12 @@ Portainer URL: https://portainer.example.com
 ## Stacks (5 total)
 
 ### Web Application Stack
+- **Deployment Status**: ✅ Active
+- **Containers**: 3/3 running
+- **Container Details**:
+  - 🟢 `webapp-stack-web-1` (nginx:latest) - running
+  - 🟢 `webapp-stack-db-1` (postgres:13) - running
+  - 🟢 `webapp-stack-redis-1` (redis:7) - running
 - **Status**: Running
 - **Endpoint ID**: 1
 - **Environment Variables**:
@@ -84,6 +90,11 @@ volumes:
 ```
 
 ### Monitoring Stack
+- **Deployment Status**: ⚠️ Partial
+- **Containers**: 1/2 running
+- **Container Details**:
+  - 🟢 `monitoring-prometheus-1` (prom/prometheus:latest) - running
+  - 🔴 `monitoring-grafana-1` (grafana/grafana:latest) - exited
 - **Status**: Running
 - **Endpoint ID**: 1
 - **Environment Variables**:
@@ -239,32 +250,42 @@ volumes:
 ```
 
 ## Custom Templates (4 total)
+- **Deployment Summary**: 2 deployed, 2 unused
 
 ### WordPress Application
+- **Deployment Status**: ✅ Deployed
+- **Active Deployments**: 1
+- **Deployed as Stacks**:
+  - `wordpress-blog` (Status: Running)
 - **Type**: Container
 - **Description**: WordPress with MySQL database
 - **Platform**: linux
-
 - **Repository**: https://github.com/company/wordpress-template
 - **Stack File**: docker-compose.yml
 
-### Node.js Microservice
+### Node.js Microservice  
+- **Deployment Status**: ❌ Unused
+- **Active Deployments**: 0
 - **Type**: Container
 - **Description**: Node.js microservice template with Redis cache
 - **Platform**: linux
-
 - **Repository**: https://github.com/company/nodejs-microservice
 - **Stack File**: docker-compose.yml
 
 ### Python Data Pipeline
+- **Deployment Status**: ✅ Deployed
+- **Active Deployments**: 1
+- **Deployed as Stacks**:
+  - `data-processing-prod` (Status: Running)
 - **Type**: Container
 - **Description**: Python data processing pipeline with PostgreSQL
 - **Platform**: linux
-
 - **Repository**: https://github.com/company/python-pipeline
 - **Stack File**: docker-compose.yml
 
 ### React Frontend
+- **Deployment Status**: ❌ Unused  
+- **Active Deployments**: 0
 - **Type**: Container
 - **Description**: React frontend application with Nginx
 - **Platform**: linux
