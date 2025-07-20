@@ -1,0 +1,17 @@
+# Portainer Documenter Configuration
+portainer_url: "https://your-portainer.com"
+username: "admin"
+password: "your-password"
+# token: "your-api-token"  # Alternative to username/password
+
+# Output settings
+output_file: "portainer-docs.md"
+output_format: "markdown"  # or "json"
+
+# What to include in documentation
+include_compose_files: true
+include_templates: true
+include_registries: true
+include_auth_settings: true
+include_license_info: true
+include_users_teams: true
