@@ -207,6 +207,20 @@ The tool generates comprehensive documentation including:
 - Team memberships
 - Access permissions
 
+## Sample Output
+
+The tool generates comprehensive documentation. Here's an example of what the markdown output looks like:
+
+- **License Information**: Edition, version, and license details
+- **Authentication**: LDAP/OAuth configuration details  
+- **Endpoints**: All Docker/Kubernetes environments with connection details
+- **Stacks**: Complete inventory with Docker Compose files included
+- **Templates**: Custom application templates with repository information
+- **Registries**: All configured Docker registries
+- **Users & Teams**: User accounts and team memberships
+
+For a complete example, see [sample-output.md](sample-output.md) which shows the full structure and formatting of generated documentation.
+
 ## Output Formats
 
 ### Markdown Format

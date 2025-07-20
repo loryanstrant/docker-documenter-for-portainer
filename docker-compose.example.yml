@@ -1,0 +1,49 @@
+version: '3.8'
+
+services:
+  portainer-documenter:
+    image: ghcr.io/loryanstrant/docker-documenter-for-portainer:latest
+    environment:
+      # Portainer connection settings
+      - PORTAINER_URL=https://your-portainer.com
+      - PORTAINER_TOKEN=your-api-token
+      # - PORTAINER_USERNAME=admin
+      # - PORTAINER_PASSWORD=your-password
+      
+      # Output configuration
+      - PORTAINER_OUTPUT_FILE=/output/portainer-docs.md
+      - PORTAINER_OUTPUT_FORMAT=markdown
+      
+      # Feature flags (optional)
+      - PORTAINER_INCLUDE_COMPOSE_FILES=true
+      - PORTAINER_INCLUDE_TEMPLATES=true
+      - PORTAINER_INCLUDE_REGISTRIES=true
+      - PORTAINER_INCLUDE_AUTH_SETTINGS=true
+      - PORTAINER_INCLUDE_LICENSE_INFO=true
+      - PORTAINER_INCLUDE_USERS_TEAMS=true
+    
+    volumes:
+      # Mount output directory to save documentation
+      - ./output:/output
+      
+      # Optional: Mount config file
+      # - ./config.yml:/app/config.yml
+    
+    # Override default command if needed
+    command: ["--verbose"]
+    
+    # Optional: Set restart policy for scheduled runs
+    # restart: unless-stopped
+
+  # Example: Scheduled documentation generation
+  portainer-documenter-cron:
+    image: ghcr.io/loryanstrant/docker-documenter-for-portainer:latest
+    environment:
+      - PORTAINER_URL=https://your-portainer.com
+      - PORTAINER_TOKEN=your-api-token
+      - PORTAINER_OUTPUT_FILE=/output/portainer-docs-$(date +%Y%m%d).md
+    volumes:
+      - ./output:/output
+    # Run every day at 2 AM (requires external cron or use with task scheduler)
+    profiles:
+      - scheduled

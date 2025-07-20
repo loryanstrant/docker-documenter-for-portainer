@@ -38,6 +38,7 @@ Thumbs.db
 # Output files
 *.md
 !README.md
+!sample-output.md
 !config.example.*
 !.env.example
 *.json
