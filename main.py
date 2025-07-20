@@ -1,108 +1,92 @@
 #!/usr/bin/env python3
 """
-Portainer Documentation Tool - Main Entry Point
+Portainer Documentation Service - Main Entry Point
 
-This tool extracts and documents various Portainer configurations including:
+This service continuously generates documentation for Portainer environments including:
 - Custom templates
 - Stacks with Docker Compose contents
 - License information
 - Authentication configurations
 - Registry configurations
+
+The service supports multiple Portainer hosts and runs on a configurable schedule.
 """
 
 import sys
 import os
 import logging
-import click
-from pathlib import Path
 
 # Add src to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
-from portainer_documenter.client import PortainerClient
-from portainer_documenter.documenter import PortainerDocumenter
+from portainer_documenter.service import PortainerDocumentationService
 from portainer_documenter.config import Config
 
 
-@click.command()
-@click.option('--url', '-u', required=True, help='Portainer URL (e.g., https://portainer.example.com)')
-@click.option('--username', help='Portainer username (can also use PORTAINER_USERNAME env var)')
-@click.option('--password', help='Portainer password (can also use PORTAINER_PASSWORD env var)')
-@click.option('--token', help='Portainer API token (can also use PORTAINER_TOKEN env var)')
-@click.option('--output', '-o', default='portainer-docs.md', help='Output file path')
-@click.option('--format', '-f', default='markdown', type=click.Choice(['markdown', 'json']), help='Output format')
-@click.option('--verbose', '-v', is_flag=True, help='Enable verbose logging')
-@click.option('--config', '-c', help='Configuration file path')
-def main(url, username, password, token, output, format, verbose, config):
-    """
-    Generate comprehensive documentation for Portainer environments.
-    
-    This tool connects to a Portainer instance and extracts configuration data
-    to generate readable documentation including stacks, templates, and settings.
-    """
-    # Setup logging
+def setup_logging(verbose: bool = False) -> None:
+    """Setup logging configuration"""
     level = logging.DEBUG if verbose else logging.INFO
-    logging.basicConfig(
-        level=level,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    
+    # Create formatter with timezone-aware timestamps
+    formatter = logging.Formatter(
+        '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S %Z'
     )
+    
+    # Create console handler
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(formatter)
+    
+    # Configure root logger
+    root_logger = logging.getLogger()
+    root_logger.setLevel(level)
+    root_logger.addHandler(console_handler)
+    
+    # Reduce noise from external libraries
+    logging.getLogger('apscheduler').setLevel(logging.WARNING)
+    logging.getLogger('urllib3').setLevel(logging.WARNING)
+
+
+def main():
+    """
+    Start the Portainer Documentation Service.
+    
+    The service will:
+    1. Load configuration from environment variables
+    2. Generate documentation immediately on startup
+    3. Schedule daily documentation generation
+    4. Keep running to maintain the schedule
+    """
+    # Check for verbose logging
+    verbose = os.getenv('PORTAINER_VERBOSE', '').lower() in ['true', '1', 'yes', 'on']
+    
+    # Setup logging
+    setup_logging(verbose)
     logger = logging.getLogger(__name__)
     
     try:
+        logger.info("Starting Portainer Documentation Service")
+        
         # Load configuration
-        config_obj = Config(config_file=config)
+        config = Config()
         
-        # Override with command line arguments
-        if url:
-            config_obj.portainer_url = url
-        if username:
-            config_obj.username = username
-        if password:
-            config_obj.password = password
-        if token:
-            config_obj.token = token
-        if output:
-            config_obj.output_file = output
-        if format:
-            config_obj.output_format = format
-            
-        # Validate configuration
-        if not config_obj.portainer_url:
-            logger.error("Portainer URL is required")
-            sys.exit(1)
-            
-        if not config_obj.token and not (config_obj.username and config_obj.password):
-            logger.error("Either API token or username/password is required")
-            sys.exit(1)
+        # Log configuration info (without sensitive data)
+        logger.info(f"Service configuration:")
+        logger.info(f"  - Timezone: {config.portainer_timezone}")
+        logger.info(f"  - Schedule: {config.portainer_schedule_time}")
+        logger.info(f"  - Output directory: {config.portainer_output_dir}")
+        logger.info(f"  - Output format: {config.output_format}")
+        logger.info(f"  - Configured hosts: {len(config.get_hosts())}")
         
-        logger.info(f"Connecting to Portainer at {config_obj.portainer_url}")
+        # Create and start service
+        service = PortainerDocumentationService(config)
+        service.start_service()
         
-        # Initialize Portainer client
-        client = PortainerClient(
-            url=config_obj.portainer_url,
-            username=config_obj.username,
-            password=config_obj.password,
-            token=config_obj.token
-        )
-        
-        # Test connection
-        if not client.test_connection():
-            logger.error("Failed to connect to Portainer")
-            sys.exit(1)
-        
-        logger.info("Successfully connected to Portainer")
-        
-        # Initialize documenter
-        documenter = PortainerDocumenter(client, config_obj)
-        
-        # Generate documentation
-        logger.info("Generating documentation...")
-        documenter.generate_documentation()
-        
-        logger.info(f"Documentation generated successfully: {config_obj.output_file}")
-        
+    except KeyboardInterrupt:
+        logger.info("Service interrupted by user")
+        sys.exit(0)
     except Exception as e:
-        logger.error(f"Error: {e}")
+        logger.error(f"Service startup failed: {e}")
         if verbose:
             logger.exception("Full exception details:")
         sys.exit(1)

@@ -6,6 +6,7 @@ Generates comprehensive documentation from Portainer API data.
 
 import json
 import logging
+import shutil
 from datetime import datetime
 from typing import Dict, List, Any
 from pathlib import Path
@@ -17,11 +18,40 @@ from .config import Config
 class PortainerDocumenter:
     """Main documentation generator for Portainer"""
     
-    def __init__(self, client: PortainerClient, config: Config):
+    def __init__(self, client: PortainerClient, config: Config, host_config: Dict[str, Any] = None):
         self.client = client
         self.config = config
+        self.host_config = host_config or {}
         self.logger = logging.getLogger(__name__)
         self.collected_data = {}
+    
+    def get_output_filename(self) -> str:
+        """Generate output filename for this host"""
+        host_name = self.host_config.get('name', 'default')
+        # Sanitize host name for filename
+        safe_name = "".join(c for c in host_name if c.isalnum() or c in ('-', '_')).rstrip()
+        return f"{safe_name}-docs.md"
+    
+    def get_output_path(self) -> Path:
+        """Get full output path for this host"""
+        filename = self.get_output_filename()
+        return Path(self.config.portainer_output_dir) / filename
+    
+    def backup_existing_file(self) -> None:
+        """Backup existing documentation file with timestamp"""
+        output_path = self.get_output_path()
+        
+        if output_path.exists():
+            # Create timestamp
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            backup_name = f"{output_path.stem}_{timestamp}{output_path.suffix}"
+            backup_path = output_path.parent / backup_name
+            
+            try:
+                shutil.copy2(output_path, backup_path)
+                self.logger.info(f"Backed up existing file to: {backup_path}")
+            except Exception as e:
+                self.logger.warning(f"Could not backup existing file: {e}")
     
     def collect_data(self) -> None:
         """Collect all data from Portainer API"""
@@ -85,6 +115,13 @@ class PortainerDocumenter:
         """Generate documentation in the specified format"""
         self.collect_data()
         
+        # Backup existing file before generating new one
+        self.backup_existing_file()
+        
+        # Ensure output directory exists
+        output_path = self.get_output_path()
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        
         if self.config.output_format == 'markdown':
             self._generate_markdown()
         elif self.config.output_format == 'json':
@@ -97,9 +134,12 @@ class PortainerDocumenter:
         content = []
         
         # Header
-        content.append("# Portainer Environment Documentation")
+        host_name = self.host_config.get('name', 'Unknown')
+        host_url = self.host_config.get('url', 'Unknown')
+        
+        content.append(f"# Portainer Environment Documentation - {host_name}")
         content.append(f"\nGenerated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        content.append(f"Portainer URL: {self.config.portainer_url}")
+        content.append(f"Portainer URL: {host_url}")
         content.append("\n---")
         
         # License and version info
@@ -129,19 +169,33 @@ class PortainerDocumenter:
             content.extend(self._generate_users_teams_section())
         
         # Write to file
-        with open(self.config.output_file, 'w', encoding='utf-8') as f:
+        output_path = self.get_output_path()
+        with open(output_path, 'w', encoding='utf-8') as f:
             f.write('\n'.join(content))
+        
+        self.logger.info(f"Documentation generated: {output_path}")
     
     def _generate_json(self) -> None:
         """Generate JSON documentation"""
+        host_name = self.host_config.get('name', 'Unknown')
+        host_url = self.host_config.get('url', 'Unknown')
+        
         output_data = {
             'generated_at': datetime.now().isoformat(),
-            'portainer_url': self.config.portainer_url,
+            'host_name': host_name,
+            'portainer_url': host_url,
             'data': self.collected_data
         }
         
-        with open(self.config.output_file, 'w', encoding='utf-8') as f:
+        output_path = self.get_output_path()
+        if self.config.output_format == 'json':
+            # Change extension to .json for JSON output
+            output_path = output_path.with_suffix('.json')
+        
+        with open(output_path, 'w', encoding='utf-8') as f:
             json.dump(output_data, f, indent=2, default=str)
+        
+        self.logger.info(f"Documentation generated: {output_path}")
     
     def _generate_license_section(self) -> List[str]:
         """Generate license and version information section"""
@@ -180,7 +234,8 @@ class PortainerDocumenter:
             oauth = auth_settings['OAuthSettings']
             content.append("\n### OAuth Configuration")
             content.append(f"- **Provider**: {oauth.get('Provider', 'Not configured')}")
-            content.append(f"- **Client ID**: {oauth.get('ClientID', 'Not configured')}")
+            # Remove client ID as it could be considered sensitive
+            content.append("- **Client ID**: [Configured]" if oauth.get('ClientID') else "- **Client ID**: Not configured")
         
         return content
     
