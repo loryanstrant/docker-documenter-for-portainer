@@ -109,6 +109,16 @@ class PortainerDocumenter:
                 self.collected_data['users'] = []
                 self.collected_data['teams'] = []
         
+        # Container deployment analysis
+        self.logger.info("Analyzing container deployments...")
+        try:
+            self.collected_data['stack_deployments'] = self.client.analyze_stack_deployments()
+            self.collected_data['template_deployments'] = self.client.analyze_template_deployments()
+        except Exception as e:
+            self.logger.warning(f"Could not analyze deployments: {e}")
+            self.collected_data['stack_deployments'] = {}
+            self.collected_data['template_deployments'] = {}
+        
         self.logger.info("Data collection completed")
     
     def generate_documentation(self) -> None:
@@ -262,14 +272,40 @@ class PortainerDocumenter:
         return content
     
     def _generate_stacks_section(self) -> List[str]:
-        """Generate stacks section"""
+        """Generate stacks section with deployment analysis"""
         content = []
         stacks = self.collected_data.get('stacks', [])
+        stack_deployments = self.collected_data.get('stack_deployments', {})
         
         content.append(f"\n## Stacks ({len(stacks)} total)")
         
         for stack in stacks:
-            content.append(f"\n### {stack.get('Name', 'Unknown')}")
+            stack_name = stack.get('Name', 'Unknown')
+            content.append(f"\n### {stack_name}")
+            
+            # Add deployment status if available
+            deployment_info = stack_deployments.get(stack_name, {})
+            if deployment_info:
+                status_indicator = deployment_info.get('status_indicator', '❓')
+                deployment_status = deployment_info.get('deployment_status', 'unknown')
+                total_containers = deployment_info.get('total_containers', 0)
+                running_containers = deployment_info.get('running_containers', 0)
+                
+                content.append(f"- **Deployment Status**: {status_indicator} {deployment_status.title()}")
+                content.append(f"- **Containers**: {running_containers}/{total_containers} running")
+                
+                # Add container details if available
+                containers = deployment_info.get('containers', [])
+                if containers:
+                    content.append("- **Container Details**:")
+                    for container in containers:
+                        container_name = container.get('Names', ['Unknown'])[0].lstrip('/')
+                        image = container.get('Image', 'Unknown')
+                        state = container.get('State', 'Unknown')
+                        state_icon = '🟢' if state == 'running' else ('🟡' if state == 'paused' else '🔴')
+                        content.append(f"  - {state_icon} `{container_name}` ({image}) - {state}")
+            
+            # Original stack information
             content.append(f"- **Status**: {stack.get('Status', 'Unknown')}")
             content.append(f"- **Endpoint ID**: {stack.get('EndpointId', 'Unknown')}")
             
@@ -288,14 +324,42 @@ class PortainerDocumenter:
         return content
     
     def _generate_templates_section(self) -> List[str]:
-        """Generate custom templates section"""
+        """Generate custom templates section with deployment analysis"""
         content = []
         templates = self.collected_data.get('templates', [])
+        template_deployments = self.collected_data.get('template_deployments', {})
         
         content.append(f"\n## Custom Templates ({len(templates)} total)")
         
+        # Add deployment summary
+        if template_deployments:
+            deployed_count = sum(1 for t in template_deployments.values() if t.get('deployment_count', 0) > 0)
+            unused_count = len(template_deployments) - deployed_count
+            content.append(f"- **Deployment Summary**: {deployed_count} deployed, {unused_count} unused")
+        
         for template in templates:
-            content.append(f"\n### {template.get('Title', 'Unknown')}")
+            template_title = template.get('Title', 'Unknown')
+            content.append(f"\n### {template_title}")
+            
+            # Add deployment status if available
+            deployment_info = template_deployments.get(template_title, {})
+            if deployment_info:
+                status_indicator = deployment_info.get('status_indicator', '❓')
+                deployment_count = deployment_info.get('deployment_count', 0)
+                deployment_status = deployment_info.get('deployment_status', 'unknown')
+                
+                content.append(f"- **Deployment Status**: {status_indicator} {deployment_status.title()}")
+                if deployment_count > 0:
+                    content.append(f"- **Active Deployments**: {deployment_count}")
+                    
+                    # List deployed stacks
+                    deployed_stacks = deployment_info.get('deployed_stacks', [])
+                    if deployed_stacks:
+                        content.append("- **Deployed as Stacks**:")
+                        for stack in deployed_stacks:
+                            content.append(f"  - `{stack.get('name', 'Unknown')}` (Status: {stack.get('status', 'Unknown')})")
+            
+            # Original template information
             content.append(f"- **Type**: {template.get('Type', 'Unknown')}")
             if template.get('Description'):
                 content.append(f"- **Description**: {template.get('Description')}")
