@@ -19,6 +19,9 @@ A comprehensive documentation service for Portainer that continuously generates 
 - **📄 Multiple Formats**: Generate documentation in Markdown or JSON
 - **🐳 Containerized**: Runs as a Docker container for easy deployment
 - **🔒 Security Focused**: No sensitive information (tokens, passwords) included in documentation
+- **🚀 Container Deployment Analysis**: Analyze which stacks and templates have running containers
+- **📊 Deployment Status Indicators**: Visual indicators (✅/⚠️/❌) for quick status assessment
+- **🔍 Template Usage Analytics**: Track which custom templates are actively deployed
 
 ## Quick Start
 
@@ -247,15 +250,19 @@ The service generates comprehensive documentation including:
 - Group and tag assignments
 
 ### 📚 Stacks
-- Complete stack inventory
+- Complete stack inventory with deployment analysis
 - Docker Compose file contents
 - Environment variables
-- Deployment status
+- Container deployment status with visual indicators (✅/⚠️/❌)
+- Running vs total container counts
+- Individual container details and health status
 
 ### 📝 Custom Templates
-- Application templates
+- Application templates with deployment analytics
 - Template descriptions and platforms
 - Repository information
+- Template usage statistics (deployed vs unused)
+- Active deployment tracking
 
 ### 🗂️ Registries
 - Configured Docker registries
@@ -274,8 +281,15 @@ The service generates comprehensive documentation. Here's an example of what the
 - **License Information**: Edition, version, and license details
 - **Authentication**: LDAP/OAuth configuration details (no sensitive data)
 - **Endpoints**: All Docker/Kubernetes environments with connection details
-- **Stacks**: Complete inventory with Docker Compose files included
-- **Templates**: Custom application templates with repository information
+- **Stacks**: Complete inventory with Docker Compose files and deployment analysis
+  - ✅ Active deployments with running container details
+  - ⚠️ Partial deployments with some containers stopped
+  - ❌ Non-deployed stacks
+  - Container-level status with visual indicators
+- **Templates**: Custom application templates with usage analytics
+  - Deployment summary showing used vs unused templates
+  - Active deployment tracking per template
+  - Stack deployment associations
 - **Registries**: All configured Docker registries (no credentials)
 - **Users & Teams**: User accounts and team memberships
 
@@ -430,6 +444,9 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 - [x] Scheduled documentation generation
 - [x] File versioning and backup
 - [x] Timezone support
+- [x] Container deployment analysis for stacks and templates
+- [x] Visual deployment status indicators
+- [x] Template usage analytics
 - [ ] Web UI for configuration and monitoring
 - [ ] Integration with popular documentation platforms
 - [ ] Additional output formats (PDF, HTML)
