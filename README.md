@@ -11,11 +11,12 @@ A comprehensive documentation service for Portainer that continuously generates 
 - **📅 Daily Scheduling**: Automatic daily documentation generation at configured time
 - **📁 File Versioning**: Automatic backup of existing files with timestamps
 - **🐳 Stack Documentation**: Include complete Docker Compose files in the output
-- **📝 Custom Templates**: Document all custom application templates
+- **📝 Custom Templates**: Document all custom application templates with environment variables and template variables
 - **🔐 Authentication Settings**: Capture LDAP, OAuth, and internal auth configurations (no sensitive data)
 - **📊 License Information**: Document Portainer edition and license details
-- **🗂️ Registry Management**: List and document all configured registries
-- **👥 User Management**: Document users and teams
+- **🗂️ Registry Management**: List and document all configured registries with provider type decoding
+- **👥 User Management**: Document users (with human-readable roles) and teams
+- **🖼️ Docker Image Inventory**: List all Docker images across all endpoints with size, digest, and usage counts
 - **📄 Multiple Formats**: Generate documentation in Markdown or JSON
 - **🐳 Containerized**: Runs as a Docker container for easy deployment
 - **🔒 Security Focused**: No sensitive information (tokens, passwords) included in documentation
@@ -147,6 +148,7 @@ PORTAINER_INCLUDE_REGISTRIES=true       # Include registry configurations
 PORTAINER_INCLUDE_AUTH_SETTINGS=true    # Include authentication settings
 PORTAINER_INCLUDE_LICENSE_INFO=true     # Include license information
 PORTAINER_INCLUDE_USERS_TEAMS=true      # Include user and team information
+PORTAINER_INCLUDE_IMAGES=true           # Include Docker image inventory
 ```
 
 ### Docker Compose Example
@@ -245,34 +247,52 @@ The service generates comprehensive documentation including:
 - OAuth provider configuration (no client secrets)
 
 ### 🏢 Endpoints (Environments)
-- All configured Docker environments
-- Connection details and status
+- All configured Docker environments with decoded type names (Docker, Agent, Kubernetes, etc.)
+- Connection details (URL and Public URL if set)
+- Status (Up/Down)
 - Group and tag assignments
+- Snapshot counts: running containers, total containers, images, and volumes
 
 ### 📚 Stacks
 - Complete stack inventory with deployment analysis
+- Stack type (Swarm / Compose / Kubernetes) and status (Active / Inactive)
 - Docker Compose file contents
 - Environment variables
+- Creation and last-updated timestamps with author information
+- Git repository URL, branch/ref, and compose file path (for Git-backed stacks)
 - Container deployment status with visual indicators (✅/⚠️/❌)
 - Running vs total container counts
 - Individual container details and health status
 
 ### 📝 Custom Templates
 - Application templates with deployment analytics
-- Template descriptions and platforms
-- Repository information
+- Template type (Swarm / Compose / Kubernetes) and platform (Linux / Windows)
+- Template descriptions, notes, and categories
+- Logo URLs
+- Repository information (URL and stack file path)
+- Default environment variables with labels and default values
+- Template variables list
 - Template usage statistics (deployed vs unused)
 - Active deployment tracking
 
 ### 🗂️ Registries
-- Configured Docker registries
+- Configured Docker registries with decoded provider type (DockerHub, ECR, GitLab, etc.)
+- Registry ID
+- URL and Base URL
 - Authentication status (no credentials)
-- Registry types and URLs
 
 ### 👥 Users and Teams
-- User accounts and roles
-- Team memberships
-- Access permissions
+- User accounts with human-readable roles (Administrator / Standard User)
+- Team listings
+
+### 🖼️ Docker Images
+- Full image inventory across all configured endpoints
+- Short image ID and full digest
+- Image size and virtual size
+- Creation timestamp
+- Number of containers currently using the image
+- Source endpoint name
+- Image labels
 
 ## Sample Output
 
@@ -280,18 +300,26 @@ The service generates comprehensive documentation. Here's an example of what the
 
 - **License Information**: Edition, version, and license details
 - **Authentication**: LDAP/OAuth configuration details (no sensitive data)
-- **Endpoints**: All Docker/Kubernetes environments with connection details
+- **Endpoints**: All Docker/Kubernetes environments with connection details, status, and resource snapshot counts
 - **Stacks**: Complete inventory with Docker Compose files and deployment analysis
+  - Stack type (Swarm / Compose / Kubernetes) and status
+  - Creation and update timestamps with author
+  - Git repository details for Git-backed stacks
   - ✅ Active deployments with running container details
   - ⚠️ Partial deployments with some containers stopped
   - ❌ Non-deployed stacks
   - Container-level status with visual indicators
 - **Templates**: Custom application templates with usage analytics
+  - Template type, platform, notes, and categories
+  - Default environment variables and template variables
   - Deployment summary showing used vs unused templates
   - Active deployment tracking per template
   - Stack deployment associations
-- **Registries**: All configured Docker registries (no credentials)
-- **Users & Teams**: User accounts and team memberships
+- **Registries**: All configured Docker registries with decoded provider type (no credentials)
+- **Users & Teams**: User accounts with human-readable roles and team memberships
+- **Images**: Full Docker image inventory across all endpoints
+  - Image ID, digest, size, and creation date
+  - Number of containers using each image
 
 For a complete example, see [sample-output.md](sample-output.md) which shows the full structure and formatting of generated documentation.
 
@@ -447,6 +475,8 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 - [x] Container deployment analysis for stacks and templates
 - [x] Visual deployment status indicators
 - [x] Template usage analytics
+- [x] Docker image inventory across all endpoints
+- [x] Enriched markdown output matching JSON export detail (decoded type/status codes, snapshot counts, Git config, creation/update metadata)
 - [ ] Web UI for configuration and monitoring
 - [ ] Integration with popular documentation platforms
 - [ ] Additional output formats (PDF, HTML)
