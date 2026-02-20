@@ -169,6 +169,31 @@ class PortainerClient:
         
         return detailed_stacks
     
+    def get_images(self, endpoint_id: Optional[int] = None) -> List[Dict[str, Any]]:
+        """Get all images, optionally filtered by endpoint"""
+        try:
+            if endpoint_id:
+                return self._make_request(f'/api/endpoints/{endpoint_id}/docker/images/json')
+            else:
+                endpoints = self.get_endpoints()
+                all_images = []
+
+                for endpoint in endpoints:
+                    try:
+                        images = self._make_request(f'/api/endpoints/{endpoint["Id"]}/docker/images/json')
+                        for image in images:
+                            image['EndpointId'] = endpoint['Id']
+                            image['EndpointName'] = endpoint.get('Name', 'Unknown')
+                        all_images.extend(images)
+                    except Exception as e:
+                        self.logger.warning(f"Could not get images for endpoint {endpoint['Id']}: {e}")
+                        continue
+
+                return all_images
+        except Exception as e:
+            self.logger.error(f"Failed to get images: {e}")
+            return []
+
     def get_containers(self, endpoint_id: Optional[int] = None) -> List[Dict[str, Any]]:
         """Get all containers, optionally filtered by endpoint"""
         try:

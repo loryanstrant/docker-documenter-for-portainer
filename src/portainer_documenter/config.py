@@ -37,6 +37,7 @@ class Config:
         self.include_auth_settings = True
         self.include_license_info = True
         self.include_users_teams = True
+        self.include_images = True
         
         # Load from config file if provided
         if config_file:
@@ -110,6 +111,7 @@ class Config:
             'PORTAINER_INCLUDE_AUTH_SETTINGS': 'include_auth_settings',
             'PORTAINER_INCLUDE_LICENSE_INFO': 'include_license_info',
             'PORTAINER_INCLUDE_USERS_TEAMS': 'include_users_teams',
+            'PORTAINER_INCLUDE_IMAGES': 'include_images',
         }
         
         for env_var, attr_name in bool_mappings.items():
@@ -180,6 +182,7 @@ class Config:
             'include_auth_settings': self.include_auth_settings,
             'include_license_info': self.include_license_info,
             'include_users_teams': self.include_users_teams,
+            'include_images': self.include_images,
         }
     
     def save_to_file(self, file_path: str) -> None:

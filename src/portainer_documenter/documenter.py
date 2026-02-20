@@ -7,12 +7,14 @@ Generates comprehensive documentation from Portainer API data.
 import json
 import logging
 import shutil
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, List, Any
 from pathlib import Path
 
 from .client import PortainerClient
 from .config import Config
+
+_UTC_DATETIME_FMT = '%Y-%m-%d %H:%M:%S UTC'
 
 
 class PortainerDocumenter:
@@ -109,6 +111,15 @@ class PortainerDocumenter:
                 self.collected_data['users'] = []
                 self.collected_data['teams'] = []
         
+        # Images
+        if self.config.include_images:
+            self.logger.info("Collecting images...")
+            try:
+                self.collected_data['images'] = self.client.get_images()
+            except Exception as e:
+                self.logger.warning(f"Could not collect images: {e}")
+                self.collected_data['images'] = []
+        
         # Container deployment analysis
         self.logger.info("Analyzing container deployments...")
         try:
@@ -177,6 +188,10 @@ class PortainerDocumenter:
         # Users and Teams
         if self.config.include_users_teams:
             content.extend(self._generate_users_teams_section())
+        
+        # Images
+        if self.config.include_images:
+            content.extend(self._generate_images_section())
         
         # Write to file
         output_path = self.get_output_path()
@@ -253,22 +268,44 @@ class PortainerDocumenter:
         """Generate endpoints (environments) section"""
         content = []
         endpoints = self.collected_data.get('endpoints', [])
-        
+
+        _endpoint_types = {1: 'Docker', 2: 'Agent', 3: 'Azure ACI', 4: 'Edge Agent (Docker)',
+                           5: 'Local Kubernetes', 6: 'Kubernetes (Agent)', 7: 'Edge Agent (Kubernetes)'}
+        _endpoint_statuses = {1: 'Up', 2: 'Down'}
+
         content.append(f"\n## Endpoints ({len(endpoints)} total)")
-        
+
         for endpoint in endpoints:
             content.append(f"\n### {endpoint.get('Name', 'Unknown')}")
-            content.append(f"- **Type**: {endpoint.get('Type', 'Unknown')}")
+
+            raw_type = endpoint.get('Type', 'Unknown')
+            content.append(f"- **Type**: {_endpoint_types.get(raw_type, raw_type)}")
             content.append(f"- **URL**: {endpoint.get('URL', 'Not specified')}")
-            content.append(f"- **Status**: {endpoint.get('Status', 'Unknown')}")
-            
+
+            if endpoint.get('PublicURL'):
+                content.append(f"- **Public URL**: {endpoint.get('PublicURL')}")
+
+            raw_status = endpoint.get('Status', 'Unknown')
+            content.append(f"- **Status**: {_endpoint_statuses.get(raw_status, raw_status)}")
+
             if endpoint.get('TagIds'):
                 content.append(f"- **Tags**: {endpoint.get('TagIds', [])}")
-            
-            # Group info
+
             if endpoint.get('GroupId'):
                 content.append(f"- **Group ID**: {endpoint.get('GroupId')}")
-        
+
+            # Snapshot data (container/image/volume counts)
+            snapshots = endpoint.get('Snapshots') or []
+            if snapshots:
+                snap = snapshots[0]
+                running = snap.get('RunningContainerCount', snap.get('runningContainerCount', 'N/A'))
+                total = snap.get('ContainerCount', snap.get('containerCount', 'N/A'))
+                images = snap.get('ImageCount', snap.get('imageCount', 'N/A'))
+                volumes = snap.get('VolumeCount', snap.get('volumeCount', 'N/A'))
+                content.append(f"- **Containers**: {running}/{total} running")
+                content.append(f"- **Images**: {images}")
+                content.append(f"- **Volumes**: {volumes}")
+
         return content
     
     def _generate_stacks_section(self) -> List[str]:
@@ -276,7 +313,10 @@ class PortainerDocumenter:
         content = []
         stacks = self.collected_data.get('stacks', [])
         stack_deployments = self.collected_data.get('stack_deployments', {})
-        
+
+        _stack_types = {1: 'Swarm', 2: 'Compose', 3: 'Kubernetes'}
+        _stack_statuses = {1: 'Active', 2: 'Inactive'}
+
         content.append(f"\n## Stacks ({len(stacks)} total)")
         
         for stack in stacks:
@@ -305,10 +345,40 @@ class PortainerDocumenter:
                         state_icon = '🟢' if state == 'running' else ('🟡' if state == 'paused' else '🔴')
                         content.append(f"  - {state_icon} `{container_name}` ({image}) - {state}")
             
+            # Stack type
+            raw_type = stack.get('Type')
+            if raw_type is not None:
+                content.append(f"- **Type**: {_stack_types.get(raw_type, raw_type)}")
+
             # Original stack information
-            content.append(f"- **Status**: {stack.get('Status', 'Unknown')}")
+            raw_status = stack.get('Status')
+            content.append(f"- **Status**: {_stack_statuses.get(raw_status, raw_status)}")
             content.append(f"- **Endpoint ID**: {stack.get('EndpointId', 'Unknown')}")
-            
+
+            # Creation / update metadata
+            if stack.get('CreationDate'):
+                created_dt = datetime.fromtimestamp(stack['CreationDate'], tz=timezone.utc).strftime(_UTC_DATETIME_FMT)
+                line = f"- **Created**: {created_dt}"
+                if stack.get('CreatedBy'):
+                    line += f" by {stack['CreatedBy']}"
+                content.append(line)
+
+            if stack.get('UpdateDate'):
+                updated_dt = datetime.fromtimestamp(stack['UpdateDate'], tz=timezone.utc).strftime(_UTC_DATETIME_FMT)
+                line = f"- **Last Updated**: {updated_dt}"
+                if stack.get('UpdatedBy'):
+                    line += f" by {stack['UpdatedBy']}"
+                content.append(line)
+
+            # Git configuration
+            git_config = stack.get('GitConfig')
+            if git_config and git_config.get('URL'):
+                content.append(f"- **Git Repository**: {git_config['URL']}")
+                if git_config.get('ReferenceName'):
+                    content.append(f"- **Git Branch/Ref**: {git_config['ReferenceName']}")
+                if git_config.get('ConfigFilePath'):
+                    content.append(f"- **Compose File Path**: {git_config['ConfigFilePath']}")
+
             if stack.get('Env'):
                 content.append("- **Environment Variables**:")
                 for env in stack['Env']:
@@ -328,6 +398,9 @@ class PortainerDocumenter:
         content = []
         templates = self.collected_data.get('templates', [])
         template_deployments = self.collected_data.get('template_deployments', {})
+
+        _template_types = {1: 'Swarm', 2: 'Compose', 3: 'Kubernetes'}
+        _template_platforms = {1: 'Linux', 2: 'Windows'}
         
         content.append(f"\n## Custom Templates ({len(templates)} total)")
         
@@ -360,18 +433,45 @@ class PortainerDocumenter:
                             content.append(f"  - `{stack.get('name', 'Unknown')}` (Status: {stack.get('status', 'Unknown')})")
             
             # Original template information
-            content.append(f"- **Type**: {template.get('Type', 'Unknown')}")
+            raw_type = template.get('Type')
+            content.append(f"- **Type**: {_template_types.get(raw_type, raw_type)}")
             if template.get('Description'):
                 content.append(f"- **Description**: {template.get('Description')}")
-            
-            if template.get('Platform'):
-                content.append(f"- **Platform**: {template.get('Platform')}")
-            
+
+            if template.get('Note'):
+                content.append(f"- **Note**: {template.get('Note')}")
+
+            raw_platform = template.get('Platform')
+            if raw_platform is not None:
+                content.append(f"- **Platform**: {_template_platforms.get(raw_platform, raw_platform)}")
+
+            if template.get('Categories'):
+                content.append(f"- **Categories**: {', '.join(template['Categories'])}")
+
+            if template.get('Logo'):
+                content.append(f"- **Logo**: {template.get('Logo')}")
+
             if template.get('Repository'):
                 repo = template['Repository']
                 content.append(f"- **Repository**: {repo.get('url', 'Unknown')}")
                 if repo.get('stackfile'):
                     content.append(f"- **Stack File**: {repo.get('stackfile')}")
+
+            # Default environment variables defined by the template
+            if template.get('Env'):
+                content.append("- **Environment Variables**:")
+                for env_var in template['Env']:
+                    label = env_var.get('label') or env_var.get('name', 'Unknown')
+                    default = env_var.get('default', '')
+                    default_str = f" (default: `{default}`)" if default else ''
+                    content.append(f"  - `{env_var.get('name', 'Unknown')}` — {label}{default_str}")
+
+            # Template variables (mustache-style)
+            if template.get('Variables'):
+                content.append("- **Template Variables**:")
+                for var in template['Variables']:
+                    label = var.get('label') or var.get('name', 'Unknown')
+                    content.append(f"  - `{var.get('name', 'Unknown')}` — {label}")
         
         return content
     
@@ -379,13 +479,21 @@ class PortainerDocumenter:
         """Generate registries section"""
         content = []
         registries = self.collected_data.get('registries', [])
-        
+
+        _registry_types = {1: 'Quay', 2: 'Azure', 3: 'Custom', 4: 'GitLab',
+                           5: 'ProGet', 6: 'DockerHub', 7: 'ECR', 8: 'GitHub'}
+
         content.append(f"\n## Registries ({len(registries)} total)")
         
         for registry in registries:
             content.append(f"\n### {registry.get('Name', 'Unknown')}")
-            content.append(f"- **Type**: {registry.get('Type', 'Unknown')}")
+            if registry.get('Id') is not None:
+                content.append(f"- **ID**: {registry.get('Id')}")
+            raw_type = registry.get('Type', 'Unknown')
+            content.append(f"- **Type**: {_registry_types.get(raw_type, raw_type)}")
             content.append(f"- **URL**: {registry.get('URL', 'Unknown')}")
+            if registry.get('BaseURL') and registry.get('BaseURL') != registry.get('URL'):
+                content.append(f"- **Base URL**: {registry.get('BaseURL')}")
             content.append(f"- **Authentication**: {'Yes' if registry.get('Authentication') else 'No'}")
             
             if registry.get('Username'):
@@ -398,7 +506,9 @@ class PortainerDocumenter:
         content = []
         users = self.collected_data.get('users', [])
         teams = self.collected_data.get('teams', [])
-        
+
+        _role_names = {1: 'Administrator', 2: 'Standard User'}
+
         content.append(f"\n## Users and Teams")
         content.append(f"- **Users**: {len(users)} total")
         content.append(f"- **Teams**: {len(teams)} total")
@@ -406,11 +516,65 @@ class PortainerDocumenter:
         if users:
             content.append("\n### Users")
             for user in users:
-                content.append(f"- **{user.get('Username', 'Unknown')}** (Role: {user.get('Role', 'Unknown')})")
+                raw_role = user.get('Role', 'Unknown')
+                role_name = _role_names.get(raw_role, raw_role)
+                content.append(f"- **{user.get('Username', 'Unknown')}** (Role: {role_name})")
         
         if teams:
             content.append("\n### Teams")
             for team in teams:
                 content.append(f"- **{team.get('Name', 'Unknown')}**")
         
+        return content
+
+    def _generate_images_section(self) -> List[str]:
+        """Generate images section"""
+        content = []
+        images = self.collected_data.get('images', [])
+
+        content.append(f"\n## Images ({len(images)} total)")
+
+        for image in images:
+            repo_tags = image.get('RepoTags') or []
+            image_id_raw = image.get('Id') or ''
+            short_id = image_id_raw[7:19] if image_id_raw.startswith('sha256:') else image_id_raw[:12]
+            tag_label = repo_tags[0] if repo_tags else (short_id or 'Unknown')
+            content.append(f"\n### {tag_label}")
+
+            if len(repo_tags) > 1:
+                content.append(f"- **Tags**: {', '.join(repo_tags)}")
+
+            content.append(f"- **ID**: {short_id}")
+
+            repo_digests = image.get('RepoDigests') or []
+            if repo_digests:
+                content.append(f"- **Digest**: {repo_digests[0]}")
+
+            size = image.get('Size', 0)
+            if size:
+                size_mb = size / (1024 * 1024)
+                content.append(f"- **Size**: {size_mb:.1f} MB")
+
+            virtual_size = image.get('VirtualSize') or image.get('virtualSize', 0)
+            if virtual_size and virtual_size != size:
+                virtual_size_mb = virtual_size / (1024 * 1024)
+                content.append(f"- **Virtual Size**: {virtual_size_mb:.1f} MB")
+
+            created = image.get('Created')
+            if created:
+                content.append(f"- **Created**: {datetime.fromtimestamp(created, tz=timezone.utc).strftime(_UTC_DATETIME_FMT)}")
+
+            containers_count = image.get('Containers')
+            if containers_count is not None:
+                content.append(f"- **Containers Using Image**: {containers_count}")
+
+            if image.get('EndpointName'):
+                content.append(f"- **Endpoint**: {image.get('EndpointName')}")
+
+            if image.get('Labels'):
+                labels = image['Labels']
+                content.append("- **Labels**:")
+                for key, value in labels.items():
+                    content.append(f"  - `{key}`: {value}")
+
         return content
