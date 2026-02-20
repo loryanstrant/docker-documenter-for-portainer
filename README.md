@@ -38,7 +38,7 @@ mkdir -p ./documentation
 docker run -d --name portainer-documenter \
   --restart unless-stopped \
   -v $(pwd)/documentation:/output \
-  -e PORTAINER_TIMEZONE="America/New_York" \
+  -e TZ="America/New_York" \
   -e PORTAINER_SCHEDULE_TIME="02:00" \
   -e PORTAINER_HOSTS='[
     {
@@ -80,7 +80,7 @@ The service is configured entirely through environment variables:
 
 ```bash
 # Timezone for scheduling and logging (default: UTC)
-PORTAINER_TIMEZONE=America/New_York
+TZ=America/New_York
 
 # Daily documentation generation time in 24-hour format (default: 02:00)  
 PORTAINER_SCHEDULE_TIME=02:00
@@ -165,7 +165,7 @@ services:
     restart: unless-stopped
     
     environment:
-      PORTAINER_TIMEZONE: "America/New_York"
+      TZ: "America/New_York"
       PORTAINER_SCHEDULE_TIME: "02:00"
       PORTAINER_HOSTS: |
         [
@@ -347,7 +347,7 @@ The service can be integrated into CI/CD pipelines for automated documentation:
 - name: Generate Portainer Documentation
   run: |
     docker run --rm -v ${{ github.workspace }}/docs:/output \
-      -e PORTAINER_TIMEZONE="UTC" \
+      -e TZ="UTC" \
       -e PORTAINER_HOSTS='[{
         "name": "production",
         "url": "${{ secrets.PORTAINER_URL }}",
