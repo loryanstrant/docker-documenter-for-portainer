@@ -7,7 +7,7 @@ Generates comprehensive documentation from Portainer API data.
 import json
 import logging
 import shutil
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, List, Any
 from pathlib import Path
 
@@ -109,6 +109,15 @@ class PortainerDocumenter:
                 self.collected_data['users'] = []
                 self.collected_data['teams'] = []
         
+        # Images
+        if self.config.include_images:
+            self.logger.info("Collecting images...")
+            try:
+                self.collected_data['images'] = self.client.get_images()
+            except Exception as e:
+                self.logger.warning(f"Could not collect images: {e}")
+                self.collected_data['images'] = []
+        
         # Container deployment analysis
         self.logger.info("Analyzing container deployments...")
         try:
@@ -177,6 +186,10 @@ class PortainerDocumenter:
         # Users and Teams
         if self.config.include_users_teams:
             content.extend(self._generate_users_teams_section())
+        
+        # Images
+        if self.config.include_images:
+            content.extend(self._generate_images_section())
         
         # Write to file
         output_path = self.get_output_path()
@@ -413,4 +426,43 @@ class PortainerDocumenter:
             for team in teams:
                 content.append(f"- **{team.get('Name', 'Unknown')}**")
         
+        return content
+
+    def _generate_images_section(self) -> List[str]:
+        """Generate images section"""
+        content = []
+        images = self.collected_data.get('images', [])
+
+        content.append(f"\n## Images ({len(images)} total)")
+
+        for image in images:
+            repo_tags = image.get('RepoTags') or []
+            image_id_raw = image.get('Id') or ''
+            short_id = image_id_raw[7:19] if image_id_raw.startswith('sha256:') else image_id_raw[:12]
+            tag_label = repo_tags[0] if repo_tags else (short_id or 'Unknown')
+            content.append(f"\n### {tag_label}")
+
+            if len(repo_tags) > 1:
+                content.append(f"- **Tags**: {', '.join(repo_tags)}")
+
+            content.append(f"- **ID**: {short_id}")
+
+            size = image.get('Size', 0)
+            if size:
+                size_mb = size / (1024 * 1024)
+                content.append(f"- **Size**: {size_mb:.1f} MB")
+
+            created = image.get('Created')
+            if created:
+                content.append(f"- **Created**: {datetime.fromtimestamp(created, tz=timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}")
+
+            if image.get('EndpointName'):
+                content.append(f"- **Endpoint**: {image.get('EndpointName')}")
+
+            if image.get('Labels'):
+                labels = image['Labels']
+                content.append("- **Labels**:")
+                for key, value in labels.items():
+                    content.append(f"  - `{key}`: {value}")
+
         return content
