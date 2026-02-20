@@ -170,7 +170,8 @@ class PortainerDocumenter:
         # Authentication settings
         if self.config.include_auth_settings:
             content.extend(self._generate_auth_section())
-        
+            content.extend(self._generate_settings_section())
+
         # Endpoints
         content.extend(self._generate_endpoints_section())
         
@@ -244,9 +245,12 @@ class PortainerDocumenter:
         """Generate authentication settings section"""
         content = []
         auth_settings = self.collected_data.get('auth_settings', {})
-        
+
+        _auth_methods = {1: 'Internal', 2: 'LDAP', 3: 'OAuth'}
+        raw_method = auth_settings.get('AuthenticationMethod', 1)
+
         content.append("\n## Authentication Configuration")
-        content.append(f"- **Method**: {auth_settings.get('AuthenticationMethod', 'Internal')}")
+        content.append(f"- **Method**: {_auth_methods.get(raw_method, raw_method)}")
         
         if auth_settings.get('LDAPSettings') and auth_settings['LDAPSettings']:
             ldap = auth_settings['LDAPSettings']
@@ -262,6 +266,97 @@ class PortainerDocumenter:
             # Remove client ID as it could be considered sensitive
             content.append("- **Client ID**: [Configured]" if oauth.get('ClientID') else "- **Client ID**: Not configured")
         
+        return content
+    
+    def _generate_settings_section(self) -> List[str]:
+        """Generate Portainer settings section"""
+        content = []
+        settings = self.collected_data.get('settings', {})
+
+        if not settings:
+            return content
+
+        content.append("\n## Portainer Settings")
+
+        # General settings
+        general_items = []
+        if settings.get('LogoURL'):
+            general_items.append(f"- **Logo URL**: {settings['LogoURL']}")
+        if settings.get('SnapshotInterval'):
+            general_items.append(f"- **Snapshot Interval**: {settings['SnapshotInterval']}")
+        if settings.get('TemplatesURL'):
+            general_items.append(f"- **Templates URL**: {settings['TemplatesURL']}")
+        if settings.get('UserSessionTimeout'):
+            general_items.append(f"- **User Session Timeout**: {settings['UserSessionTimeout']}")
+        if settings.get('KubectlShellImage'):
+            general_items.append(f"- **Kubectl Shell Image**: {settings['KubectlShellImage']}")
+        if settings.get('HelmRepositoryURL'):
+            general_items.append(f"- **Helm Repository URL**: {settings['HelmRepositoryURL']}")
+        if settings.get('KubeconfigExpiry'):
+            general_items.append(f"- **Kubeconfig Expiry**: {settings['KubeconfigExpiry']}")
+
+        if general_items:
+            content.extend(general_items)
+
+        # Feature flags
+        feature_settings = [
+            ('EnableEdgeComputeFeatures', 'Edge Compute Features'),
+            ('EnableHostManagementFeatures', 'Host Management Features'),
+            ('EnableTelemetry', 'Telemetry'),
+            ('TrustOnFirstConnect', 'Trust On First Connect'),
+            ('EnforceEdgeID', 'Enforce Edge ID'),
+            ('EnableGPUManagement', 'GPU Management'),
+        ]
+        feature_items = []
+        for key, label in feature_settings:
+            if settings.get(key) is not None:
+                status = '✅ Enabled' if settings[key] else '❌ Disabled'
+                feature_items.append(f"- **{label}**: {status}")
+
+        if feature_items:
+            content.append("\n### Feature Configuration")
+            content.extend(feature_items)
+
+        # Security policies for regular users
+        security_settings = [
+            ('AllowBindMountsForRegularUsers', 'Bind Mounts'),
+            ('AllowPrivilegedModeForRegularUsers', 'Privileged Mode'),
+            ('AllowVolumeBrowserForRegularUsers', 'Volume Browser'),
+            ('AllowHostNamespaceForRegularUsers', 'Host Namespace'),
+            ('AllowDeviceMappingForRegularUsers', 'Device Mapping'),
+            ('AllowStackManagementForRegularUsers', 'Stack Management'),
+            ('AllowContainerCapabilitiesForRegularUsers', 'Container Capabilities'),
+        ]
+        security_items = []
+        for key, label in security_settings:
+            if settings.get(key) is not None:
+                status = '✅ Allowed' if settings[key] else '❌ Restricted'
+                security_items.append(f"- **{label}**: {status}")
+
+        if security_items:
+            content.append("\n### Security Policies (Regular Users)")
+            content.extend(security_items)
+
+        # Edge configuration
+        edge_items = []
+        if settings.get('EdgePortainerURL'):
+            edge_items.append(f"- **Edge Portainer URL**: {settings['EdgePortainerURL']}")
+        if settings.get('EdgeAgentCheckinInterval') is not None:
+            edge_items.append(f"- **Edge Agent Checkin Interval**: {settings['EdgeAgentCheckinInterval']}s")
+
+        if edge_items:
+            content.append("\n### Edge Configuration")
+            content.extend(edge_items)
+
+        # Blacklisted labels
+        if settings.get('BlackListedLabels'):
+            content.append("\n### Blacklisted Labels")
+            for label in settings['BlackListedLabels']:
+                if isinstance(label, dict):
+                    content.append(f"- `{label.get('name', 'Unknown')}`: {label.get('value', '')}")
+                else:
+                    content.append(f"- {label}")
+
         return content
     
     def _generate_endpoints_section(self) -> List[str]:

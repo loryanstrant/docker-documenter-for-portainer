@@ -79,7 +79,9 @@ class Config:
                 self.portainer_hosts = []
         
         # Service configuration
-        if os.getenv('PORTAINER_TIMEZONE'):
+        if os.getenv('TZ'):
+            self.portainer_timezone = os.getenv('TZ')
+        elif os.getenv('PORTAINER_TIMEZONE'):
             self.portainer_timezone = os.getenv('PORTAINER_TIMEZONE')
         
         if os.getenv('PORTAINER_SCHEDULE_TIME'):
